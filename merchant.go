@@ -46,6 +46,7 @@ func (m *Merchant) MicroPayOrder(reqParams map[string]string) (aliResult *MicroP
 		return
 	}
 	data, err = m.BizRequest(gatewayUrl, "alipay.trade.pay", reqParams["notify_url"], map[string]interface{}{
+		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
 		"subject":         reqParams["subject"],                       // 商品名称
@@ -85,6 +86,7 @@ func (m *Merchant) PlaceOrder(reqParams map[string]string) (aliResult *PlaceOrde
 		return
 	}
 	data, err = m.BizRequest(gatewayUrl, "alipay.trade.precreate", reqParams["notify_url"], map[string]interface{}{
+		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
 		"subject":         reqParams["subject"],                       // 商品名称
@@ -124,6 +126,7 @@ func (m *Merchant) JsapiOrder(reqParams map[string]string) (aliResult *JsapiOrde
 		return
 	}
 	data, err = m.BizRequest(gatewayUrl, "alipay.trade.create", reqParams["notify_url"], map[string]interface{}{
+		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
 		"subject":         reqParams["subject"],                       // 商品名称
