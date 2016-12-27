@@ -14,13 +14,14 @@ import (
 
 type Merchant struct {
 	AppId  string
+	Env    string
 	logger *log.Logger
 
 	privateKey   *rsa.PrivateKey
 	aliPublicKey *rsa.PublicKey
 }
 
-func NewMerchant(appid string, prikeyPath, aliPublicKeyPath string) (*Merchant, error) {
+func NewMerchant(appid string, prikeyPath, aliPublicKeyPath string, env string) (*Merchant, error) {
 	priKey, err := LoadPrivateKey(prikeyPath)
 	if err != nil {
 		return nil, err
@@ -34,6 +35,7 @@ func NewMerchant(appid string, prikeyPath, aliPublicKeyPath string) (*Merchant, 
 	return &Merchant{
 		logger:       log.New(os.Stdout, "["+appid+"]", log.LstdFlags),
 		AppId:        appid,
+		Env:          env,
 		privateKey:   priKey,
 		aliPublicKey: aliPublicKey,
 	}, nil
@@ -45,7 +47,7 @@ func (m *Merchant) MicroPayOrder(reqParams map[string]string) (aliResult *MicroP
 		err = errors.New("total_fee 类型错误")
 		return
 	}
-	data, err = m.BizRequest(gatewayUrl, "alipay.trade.pay", reqParams["notify_url"], map[string]interface{}{
+	bizContent := map[string]interface{}{
 		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
@@ -54,10 +56,11 @@ func (m *Merchant) MicroPayOrder(reqParams map[string]string) (aliResult *MicroP
 		"scene":           reqParams["scene"],
 		"auth_code":       reqParams["auth_code"],
 		"timeout_express": reqParams["timeout_express"],
-		"sub_merchant": map[string]string{
-			"merchant_id": reqParams["sub_merchant_id"],
-		},
-	})
+	}
+	if m.Env != "sandbox" {
+		bizContent["sub_merchant"] = map[string]string{"merchant_id": reqParams["sub_merchant_id"]}
+	}
+	data, err = m.BizRequest(m.gatewayUrl(), "alipay.trade.pay", reqParams["notify_url"], bizContent)
 	if err != nil {
 		err = errors.New("支付返回数据格式错误")
 		return
@@ -85,17 +88,18 @@ func (m *Merchant) PlaceOrder(reqParams map[string]string) (aliResult *PlaceOrde
 		err = errors.New("total_fee 类型错误")
 		return
 	}
-	data, err = m.BizRequest(gatewayUrl, "alipay.trade.precreate", reqParams["notify_url"], map[string]interface{}{
+	bizContent := map[string]interface{}{
 		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
 		"subject":         reqParams["subject"],                       // 商品名称
 		"body":            reqParams["body"],
 		"timeout_express": reqParams["timeout_express"],
-		"sub_merchant": map[string]string{
-			"merchant_id": reqParams["sub_merchant_id"],
-		},
-	})
+	}
+	if m.Env != "sandbox" {
+		bizContent["sub_merchant"] = map[string]string{"merchant_id": reqParams["sub_merchant_id"]}
+	}
+	data, err = m.BizRequest(m.gatewayUrl(), "alipay.trade.precreate", reqParams["notify_url"], bizContent)
 	if err != nil {
 		err = errors.New("支付返回数据格式错误")
 		return
@@ -125,7 +129,7 @@ func (m *Merchant) JsapiOrder(reqParams map[string]string) (aliResult *JsapiOrde
 		err = errors.New("total_fee 类型错误")
 		return
 	}
-	data, err = m.BizRequest(gatewayUrl, "alipay.trade.create", reqParams["notify_url"], map[string]interface{}{
+	bizContent := map[string]interface{}{
 		"store_id":        reqParams["store_id"],
 		"out_trade_no":    reqParams["out_trade_no"],                  // 商户订单号
 		"total_amount":    fmt.Sprintf("%.2f", float64(totalFee)/100), // 总金额
@@ -134,10 +138,11 @@ func (m *Merchant) JsapiOrder(reqParams map[string]string) (aliResult *JsapiOrde
 		"buyer_logon_id":  reqParams["buyer_logon_id"],
 		"body":            reqParams["body"],
 		"timeout_express": reqParams["timeout_express"],
-		"sub_merchant": map[string]string{
-			"merchant_id": reqParams["sub_merchant_id"],
-		},
-	})
+	}
+	if m.Env != "sandbox" {
+		bizContent["sub_merchant"] = map[string]string{"merchant_id": reqParams["sub_merchant_id"]}
+	}
+	data, err = m.BizRequest(m.gatewayUrl(), "alipay.trade.create", reqParams["notify_url"], bizContent)
 	if err != nil {
 		err = errors.New("支付返回数据格式错误")
 		return
@@ -160,7 +165,7 @@ func (m *Merchant) JsapiOrder(reqParams map[string]string) (aliResult *JsapiOrde
 // 查询订单状态
 // https://app.alipay.com/market/document.htm?name=saomazhifu#page-15
 func (m *Merchant) QueryOrder(orderId string) (*QueryOrderResponse, []byte, error) {
-	data, err := m.BizRequest(gatewayUrl, "alipay.trade.query", "", map[string]interface{}{
+	data, err := m.BizRequest(m.gatewayUrl(), "alipay.trade.query", "", map[string]interface{}{
 		"out_trade_no": orderId, // 商户订单号
 	})
 	if err != nil {
@@ -187,7 +192,7 @@ func (m *Merchant) QueryOrder(orderId string) (*QueryOrderResponse, []byte, erro
 https://doc.open.alipay.com/docs/api.htm?spm=a219a.7395905.0.0.LOxDvL&docType=4&apiId=866
 */
 func (m *Merchant) CancelOrder(orderId string) (*CancelOrderResponse, []byte, error) {
-	data, err := m.BizRequest(gatewayUrl, "alipay.trade.cancel", "", map[string]interface{}{
+	data, err := m.BizRequest(m.gatewayUrl(), "alipay.trade.cancel", "", map[string]interface{}{
 		"out_trade_no": orderId, // 商户订单号
 	})
 	if err != nil {
@@ -211,7 +216,7 @@ func (m *Merchant) CancelOrder(orderId string) (*CancelOrderResponse, []byte, er
 // 关闭订单
 // https://app.alipay.com/market/document.htm?name=saomazhifu#page-16
 func (m *Merchant) CloseOrder(orderId string) (*CloseOrderResponse, []byte, error) {
-	data, err := m.BizRequest(gatewayUrl, "alipay.trade.close", "", map[string]interface{}{
+	data, err := m.BizRequest(m.gatewayUrl(), "alipay.trade.close", "", map[string]interface{}{
 		"out_trade_no": orderId, // 商户订单号
 	})
 	if err != nil {
@@ -233,7 +238,7 @@ func (m *Merchant) CloseOrder(orderId string) (*CloseOrderResponse, []byte, erro
 }
 
 func (m *Merchant) RefundOrder(reqParams map[string]interface{}) (*RefundResponse, []byte, error) {
-	data, err := m.BizRequest(gatewayUrl, "alipay.trade.refund", "", reqParams)
+	data, err := m.BizRequest(m.gatewayUrl(), "alipay.trade.refund", "", reqParams)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -253,7 +258,7 @@ func (m *Merchant) RefundOrder(reqParams map[string]interface{}) (*RefundRespons
 }
 
 func (m *Merchant) RefundOrderQuery(reqParams map[string]interface{}) (aliResult *RefundQueryResponse, data []byte, err error) {
-	data, err = m.BizRequest(gatewayUrl, "alipay.trade.fastpay.refund.query", "", reqParams)
+	data, err = m.BizRequest(m.gatewayUrl(), "alipay.trade.fastpay.refund.query", "", reqParams)
 	if err != nil {
 		return
 	}
@@ -344,6 +349,15 @@ func (m *Merchant) IsValid() bool {
 	return m.AppId != "" && m.privateKey != nil && m.aliPublicKey != nil
 }
 
+func (m *Merchant) gatewayUrl() string {
+	switch m.Env {
+	case "sandbox":
+		return sandboxGateWayUrl
+	default:
+		return gatewayUrl
+	}
+}
+
 func (m *Merchant) BizRequest(url, method, notifyUrl string, bizData map[string]interface{}) ([]byte, error) {
 	bizContent, err := json.Marshal(bizData)
 	if err != nil {
@@ -370,5 +384,5 @@ func (m *Merchant) BizRequest(url, method, notifyUrl string, bizData map[string]
 
 	req["sign"] = sig
 
-	return doHttpPost(gatewayUrl, []byte(req.Encode(true)))
+	return doHttpPost(url, []byte(req.Encode(true)))
 }
